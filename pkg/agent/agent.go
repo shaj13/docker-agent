@@ -14,6 +14,11 @@ import (
 	"github.com/docker/docker-agent/pkg/tools"
 )
 
+// Memory represents an AI agent's memory.
+type Memory interface {
+	Run(ctx context.Context) error
+}
+
 // Agent represents an AI agent
 type Agent struct {
 	name                    string
@@ -41,6 +46,8 @@ type Agent struct {
 	commands                types.Commands
 	pendingWarnings         []string
 	hooks                   *latest.HooksConfig
+	memory                  Memory
+	cancel                  context.CancelFunc
 }
 
 // New creates a new agent
@@ -266,6 +273,20 @@ func (a *Agent) ensureToolSetsAreStarted(ctx context.Context) {
 			continue
 		}
 	}
+
+	if a.memory == nil || a.cancel != nil {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	a.cancel = cancel
+
+	go func() {
+		if err := a.memory.Run(ctx); err != nil {
+			slog.Error("Agent memory error", "agent", a.Name(), "error", err)
+		}
+		a.cancel = nil
+	}()
 }
 
 // addToolWarning records a warning generated while loading or starting toolsets.
@@ -298,5 +319,14 @@ func (a *Agent) StopToolSets(ctx context.Context) error {
 		}
 	}
 
+	if a.cancel != nil {
+		a.cancel()
+	}
+
 	return nil
+}
+
+// Memory returns the agent's memory, or nil if no memory is configured.
+func (a *Agent) Memory() Memory {
+	return a.memory
 }

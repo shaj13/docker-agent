@@ -17,11 +17,13 @@ import (
 	"github.com/docker/docker-agent/pkg/config"
 	"github.com/docker/docker-agent/pkg/config/latest"
 	"github.com/docker/docker-agent/pkg/js"
+	"github.com/docker/docker-agent/pkg/memory/auto"
 	"github.com/docker/docker-agent/pkg/model/provider"
 	"github.com/docker/docker-agent/pkg/model/provider/dmr"
 	"github.com/docker/docker-agent/pkg/model/provider/options"
 	"github.com/docker/docker-agent/pkg/modelsdev"
 	"github.com/docker/docker-agent/pkg/permissions"
+	"github.com/docker/docker-agent/pkg/runtime"
 	"github.com/docker/docker-agent/pkg/skills"
 	"github.com/docker/docker-agent/pkg/team"
 	"github.com/docker/docker-agent/pkg/tools"
@@ -212,6 +214,30 @@ func LoadWithConfig(ctx context.Context, agentSource config.Source, runConfig *c
 		}
 
 		opts = append(opts, agent.WithToolSets(agentTools...))
+
+		for i, ts := range agentConfig.Toolsets {
+			if ts.Type != "memory" {
+				continue
+			}
+
+			slog.Info("SANAD: memory init")
+			db := agentTools[i].(*builtin.MemoryTool).DB
+			ag := agent.New(
+				"automemory",
+				"",
+				agent.WithAddDate(true),
+				agent.WithModel(models...),
+				agent.WithToolSets(agentTools[i]),
+			)
+			t := team.New(team.WithAgents(ag))
+			x, err := runtime.New(t)
+			if err != nil {
+				return nil, fmt.Errorf("creating runtime for automemory toolset: %w", err)
+			}
+
+			slog.Info("SANAD: memory new")
+			opts = append(opts, agent.WithMemory(auto.New(db, x)))
+		}
 
 		ag := agent.New(agentConfig.Name, agentConfig.Instruction, opts...)
 		agents = append(agents, ag)

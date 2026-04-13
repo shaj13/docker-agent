@@ -11,10 +11,11 @@ var (
 )
 
 type UserMemory struct {
-	ID        string `json:"id" description:"The ID of the memory"`
-	CreatedAt string `json:"created_at" description:"The creation timestamp of the memory"`
-	Memory    string `json:"memory" description:"The content of the memory"`
-	Category  string `json:"category,omitempty" description:"The category of the memory"`
+	ID          string `json:"id" description:"The ID of the memory"`
+	CreatedAt   string `json:"created_at" description:"The creation timestamp of the memory"`
+	Memory      string `json:"memory" description:"The content of the memory"`
+	Category    string `json:"category,omitempty" description:"The category of the memory"`
+	Description string `json:"description,omitempty" description:"A short description of the memory"`
 }
 
 type Database interface {

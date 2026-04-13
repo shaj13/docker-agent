@@ -16,6 +16,7 @@ import (
 	"github.com/docker/docker-agent/pkg/agent"
 	"github.com/docker/docker-agent/pkg/chat"
 	"github.com/docker/docker-agent/pkg/compaction"
+	"github.com/docker/docker-agent/pkg/memory/auto"
 	"github.com/docker/docker-agent/pkg/modelerrors"
 	"github.com/docker/docker-agent/pkg/modelsdev"
 	"github.com/docker/docker-agent/pkg/session"
@@ -375,6 +376,10 @@ func (r *LocalRuntime) RunStream(ctx context.Context, sess *session.Session) <-c
 			usage := SessionUsage(sess, contextLimit)
 			usage.LastMessage = msgUsage
 			events <- NewTokenUsageEvent(sess.ID, a.Name(), usage)
+
+			if mem := a.Memory(); mem != nil {
+				mem.(*auto.Memory).ExtractMemories(sess)
+			}
 
 			// Record the message count before tool calls so we can
 			// measure how much content was added by tool results.

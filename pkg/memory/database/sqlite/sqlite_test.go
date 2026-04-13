@@ -84,6 +84,27 @@ func TestAddMemoryWithCategory(t *testing.T) {
 	assert.Equal(t, "preference", memories[0].Category)
 }
 
+func TestAddMemoryWithDescription(t *testing.T) {
+	db := setupTestDB(t)
+
+	memory := database.UserMemory{
+		ID:          "desc-1",
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		Memory:      "User prefers dark mode in all editors",
+		Category:    "preference",
+		Description: "Dark mode preference",
+	}
+
+	err := db.AddMemory(t.Context(), memory)
+	require.NoError(t, err)
+
+	memories, err := db.GetMemories(t.Context())
+	require.NoError(t, err)
+	require.Len(t, memories, 1)
+	assert.Equal(t, "preference", memories[0].Category)
+	assert.Equal(t, "Dark mode preference", memories[0].Description)
+}
+
 func TestGetMemories(t *testing.T) {
 	db := setupTestDB(t)
 
@@ -237,9 +258,10 @@ func TestUpdateMemory(t *testing.T) {
 
 	t.Run("update content and category", func(t *testing.T) {
 		err := db.UpdateMemory(ctx, database.UserMemory{
-			ID:       "upd-1",
-			Memory:   "Updated content",
-			Category: "decision",
+			ID:          "upd-1",
+			Memory:      "Updated content",
+			Category:    "decision",
+			Description: "Updated description",
 		})
 		require.NoError(t, err)
 
@@ -248,6 +270,7 @@ func TestUpdateMemory(t *testing.T) {
 		require.Len(t, memories, 1)
 		assert.Equal(t, "Updated content", memories[0].Memory)
 		assert.Equal(t, "decision", memories[0].Category)
+		assert.Equal(t, "Updated description", memories[0].Description)
 		// CreatedAt should be preserved
 		assert.Equal(t, memory.CreatedAt, memories[0].CreatedAt)
 	})

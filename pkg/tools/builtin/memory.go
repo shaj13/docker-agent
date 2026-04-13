@@ -19,16 +19,8 @@ const (
 	ToolNameUpdateMemory   = "update_memory"
 )
 
-type DB interface {
-	AddMemory(ctx context.Context, memory database.UserMemory) error
-	GetMemories(ctx context.Context) ([]database.UserMemory, error)
-	DeleteMemory(ctx context.Context, memory database.UserMemory) error
-	SearchMemories(ctx context.Context, query, category string) ([]database.UserMemory, error)
-	UpdateMemory(ctx context.Context, memory database.UserMemory) error
-}
-
 type MemoryTool struct {
-	db   DB
+	DB   database.Database
 	path string
 }
 
@@ -39,17 +31,17 @@ var (
 	_ tools.Instructable = (*MemoryTool)(nil)
 )
 
-func NewMemoryTool(manager DB) *MemoryTool {
+func NewMemoryTool(manager database.Database) *MemoryTool {
 	return &MemoryTool{
-		db: manager,
+		DB: manager,
 	}
 }
 
 // NewMemoryToolWithPath creates a MemoryTool and records the database path for
 // user-visible identification in warnings and error messages.
-func NewMemoryToolWithPath(manager DB, dbPath string) *MemoryTool {
+func NewMemoryToolWithPath(manager database.Database, dbPath string) *MemoryTool {
 	return &MemoryTool{
-		db:   manager,
+		DB:   manager,
 		path: dbPath,
 	}
 }
@@ -63,8 +55,9 @@ func (t *MemoryTool) Describe() string {
 }
 
 type AddMemoryArgs struct {
-	Memory   string `json:"memory" jsonschema:"The memory content to store"`
-	Category string `json:"category,omitempty" jsonschema:"Optional category to organize the memory (e.g. preference, fact, project)"`
+	Memory      string `json:"memory" jsonschema:"The memory content to store"`
+	Category    string `json:"category,omitempty" jsonschema:"Optional category to organize the memory (e.g. preference, fact, project)"`
+	Description string `json:"description,omitempty" jsonschema:"one-line description — used to decide relevance in future conversations, so be specific"`
 }
 
 type DeleteMemoryArgs struct {
@@ -77,9 +70,10 @@ type SearchMemoriesArgs struct {
 }
 
 type UpdateMemoryArgs struct {
-	ID       string `json:"id" jsonschema:"The ID of the memory to update"`
-	Memory   string `json:"memory" jsonschema:"The new memory content"`
-	Category string `json:"category,omitempty" jsonschema:"Optional new category for the memory"`
+	ID          string `json:"id" jsonschema:"The ID of the memory to update"`
+	Memory      string `json:"memory" jsonschema:"The new memory content"`
+	Category    string `json:"category,omitempty" jsonschema:"Optional new category for the memory"`
+	Description string `json:"description,omitempty" jsonschema:"One-line description — used to decide relevance in future conversations, so be specific"`
 }
 
 func (t *MemoryTool) Instructions() string {
@@ -156,13 +150,14 @@ func (t *MemoryTool) Tools(context.Context) ([]tools.Tool, error) {
 
 func (t *MemoryTool) handleAddMemory(ctx context.Context, args AddMemoryArgs) (*tools.ToolCallResult, error) {
 	memory := database.UserMemory{
-		ID:        strconv.FormatInt(time.Now().UnixNano(), 10),
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Memory:    args.Memory,
-		Category:  args.Category,
+		ID:          strconv.FormatInt(time.Now().UnixNano(), 10),
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		Memory:      args.Memory,
+		Category:    args.Category,
+		Description: args.Description,
 	}
 
-	if err := t.db.AddMemory(ctx, memory); err != nil {
+	if err := t.DB.AddMemory(ctx, memory); err != nil {
 		return nil, fmt.Errorf("failed to add memory: %w", err)
 	}
 
@@ -170,7 +165,7 @@ func (t *MemoryTool) handleAddMemory(ctx context.Context, args AddMemoryArgs) (*
 }
 
 func (t *MemoryTool) handleGetMemories(ctx context.Context, _ map[string]any) (*tools.ToolCallResult, error) {
-	memories, err := t.db.GetMemories(ctx)
+	memories, err := t.DB.GetMemories(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get memories: %w", err)
 	}
@@ -188,7 +183,7 @@ func (t *MemoryTool) handleDeleteMemory(ctx context.Context, args DeleteMemoryAr
 		ID: args.ID,
 	}
 
-	if err := t.db.DeleteMemory(ctx, memory); err != nil {
+	if err := t.DB.DeleteMemory(ctx, memory); err != nil {
 		return nil, fmt.Errorf("failed to delete memory: %w", err)
 	}
 
@@ -196,7 +191,7 @@ func (t *MemoryTool) handleDeleteMemory(ctx context.Context, args DeleteMemoryAr
 }
 
 func (t *MemoryTool) handleSearchMemories(ctx context.Context, args SearchMemoriesArgs) (*tools.ToolCallResult, error) {
-	memories, err := t.db.SearchMemories(ctx, args.Query, args.Category)
+	memories, err := t.DB.SearchMemories(ctx, args.Query, args.Category)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search memories: %w", err)
 	}
@@ -211,12 +206,13 @@ func (t *MemoryTool) handleSearchMemories(ctx context.Context, args SearchMemori
 
 func (t *MemoryTool) handleUpdateMemory(ctx context.Context, args UpdateMemoryArgs) (*tools.ToolCallResult, error) {
 	memory := database.UserMemory{
-		ID:       args.ID,
-		Memory:   args.Memory,
-		Category: args.Category,
+		ID:          args.ID,
+		Memory:      args.Memory,
+		Category:    args.Category,
+		Description: args.Description,
 	}
 
-	if err := t.db.UpdateMemory(ctx, memory); err != nil {
+	if err := t.DB.UpdateMemory(ctx, memory); err != nil {
 		return nil, fmt.Errorf("failed to update memory: %w", err)
 	}
 

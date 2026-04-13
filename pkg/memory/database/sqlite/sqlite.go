@@ -36,6 +36,14 @@ func NewMemoryDatabase(path string) (database.Database, error) {
 		}
 	}
 
+	// Add description column if it doesn't exist (transparent migration)
+	if _, err := db.ExecContext(context.Background(), "ALTER TABLE memories ADD COLUMN description TEXT DEFAULT ''"); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			db.Close()
+			return nil, fmt.Errorf("memory database migration failed: %w", err)
+		}
+	}
+
 	return &MemoryDatabase{db: db}, nil
 }
 
@@ -43,13 +51,13 @@ func (m *MemoryDatabase) AddMemory(ctx context.Context, memory database.UserMemo
 	if memory.ID == "" {
 		return database.ErrEmptyID
 	}
-	_, err := m.db.ExecContext(ctx, "INSERT INTO memories (id, created_at, memory, category) VALUES (?, ?, ?, ?)",
-		memory.ID, memory.CreatedAt, memory.Memory, memory.Category)
+	_, err := m.db.ExecContext(ctx, "INSERT INTO memories (id, created_at, memory, category, description) VALUES (?, ?, ?, ?, ?)",
+		memory.ID, memory.CreatedAt, memory.Memory, memory.Category, memory.Description)
 	return err
 }
 
 func (m *MemoryDatabase) GetMemories(ctx context.Context) ([]database.UserMemory, error) {
-	rows, err := m.db.QueryContext(ctx, "SELECT id, created_at, memory, COALESCE(category, '') FROM memories")
+	rows, err := m.db.QueryContext(ctx, "SELECT id, created_at, memory, COALESCE(category, ''), COALESCE(description, '') FROM memories")
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +66,7 @@ func (m *MemoryDatabase) GetMemories(ctx context.Context) ([]database.UserMemory
 	var memories []database.UserMemory
 	for rows.Next() {
 		var memory database.UserMemory
-		err := rows.Scan(&memory.ID, &memory.CreatedAt, &memory.Memory, &memory.Category)
+		err := rows.Scan(&memory.ID, &memory.CreatedAt, &memory.Memory, &memory.Category, &memory.Description)
 		if err != nil {
 			return nil, err
 		}
@@ -97,7 +105,7 @@ func (m *MemoryDatabase) SearchMemories(ctx context.Context, query, category str
 		args = append(args, category)
 	}
 
-	stmt := "SELECT id, created_at, memory, COALESCE(category, '') FROM memories"
+	stmt := "SELECT id, created_at, memory, COALESCE(category, ''), COALESCE(description, '') FROM memories"
 	if len(conditions) > 0 {
 		stmt += " WHERE " + strings.Join(conditions, " AND ")
 	}
@@ -111,7 +119,7 @@ func (m *MemoryDatabase) SearchMemories(ctx context.Context, query, category str
 	var memories []database.UserMemory
 	for rows.Next() {
 		var memory database.UserMemory
-		err := rows.Scan(&memory.ID, &memory.CreatedAt, &memory.Memory, &memory.Category)
+		err := rows.Scan(&memory.ID, &memory.CreatedAt, &memory.Memory, &memory.Category, &memory.Description)
 		if err != nil {
 			return nil, err
 		}
@@ -130,8 +138,8 @@ func (m *MemoryDatabase) UpdateMemory(ctx context.Context, memory database.UserM
 		return database.ErrEmptyID
 	}
 
-	result, err := m.db.ExecContext(ctx, "UPDATE memories SET memory = ?, category = ? WHERE id = ?",
-		memory.Memory, memory.Category, memory.ID)
+	result, err := m.db.ExecContext(ctx, "UPDATE memories SET memory = ?, category = ?, description = ? WHERE id = ?",
+		memory.Memory, memory.Category, memory.Description, memory.ID)
 	if err != nil {
 		return err
 	}

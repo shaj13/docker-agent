@@ -52,9 +52,9 @@ func WithName(name string) Opt {
 	}
 }
 
-func WithModel(model provider.Provider) Opt {
+func WithModel(models ...provider.Provider) Opt {
 	return func(a *Agent) {
-		a.models = append(a.models, model)
+		a.models = append(a.models, models...)
 	}
 }
 
@@ -170,5 +170,14 @@ func WithLoadTimeWarnings(warnings []string) Opt {
 func WithHooks(hooks *latest.HooksConfig) Opt {
 	return func(a *Agent) {
 		a.hooks = hooks
+	}
+}
+
+// WithMemory sets the agent's memory.
+//
+// If not set, the agent will have no memory.
+func WithMemory(memory Memory) Opt {
+	return func(a *Agent) {
+		a.memory = memory
 	}
 }
